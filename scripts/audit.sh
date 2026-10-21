@@ -36,5 +36,36 @@ check "Политика по умолчанию для входящего тра
 echo "[3] Учётные записи"
 awk -F: '$3>=1000 && $3<65534 {printf " %s (uid=%s)\n",$1,$3}' /etc/passwd
 
+echo "[4] Веб-сервер"
+# а) служба nginx активна
+check "Служба Nginx активна" "active" "$(systemctl is-active nginx 2>/dev/null || true)"
+
+# б) конфигурация nginx синтаксически корректна
+if sudo nginx -t >/dev/null 2>&1; then
+    NGINX_SYNTAX="ok"
+else
+    NGINX_SYNTAX="error"
+fi
+check "Конфигурация Nginx синтаксически корректна" "ok" "$NGINX_SYNTAX"
+
+# в) сертификат истекает не ранее чем через 30 дней (2592000 сек)
+CERT_THRESHOLD="${CERT_THRESHOLD:-2592000}"
+if openssl x509 -checkend "$CERT_THRESHOLD" -noout -in /etc/ssl/certs/devops.crt >/dev/null 2>&1; then
+    CERT_VALID="valid"
+else
+    CERT_VALID="expired_or_expiring"
+fi
+check "Сертификат действует не менее 30 дней" "valid" "$CERT_VALID"
+
+# г) в каталоге ресурса нет файлов o+w и права ключа равны 600
+WORLD_WRITABLE="$(find /var/www/devops-site -perm -o+w 2>/dev/null | wc -l | tr -d ' ')"
+KEY_PERMS="$(sudo stat -c '%a' /etc/ssl/private/devops.key 2>/dev/null || true)"
+if [[ "$WORLD_WRITABLE" -eq 0 && "$KEY_PERMS" == "600" ]]; then
+    SECURITY_CHECK="ok"
+else
+    SECURITY_CHECK="failed"
+fi
+check "Отсутствуют файлы с правом записи для всех и права ключа 600" "ok" "$SECURITY_CHECK"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
