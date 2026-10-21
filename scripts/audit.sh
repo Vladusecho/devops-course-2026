@@ -15,16 +15,16 @@ check() {
 echo "Аудит конфигурации: $(hostname -f), $(date '+%Y-%m-%d %H:%M')"
 
 echo "[1] Служба SSH"
-check "Вход от имени root запрещён" "no" "$(sudo sshd -T | awk '/^permitrootlogin/{print $2}')"
-check "Парольная аутентификация отключена" "no" "$(sudo sshd -T | awk '/^passwordauthentication/{print $2}')"
+check "Вход от имени root запрещён" "no" "$(sudo sshd -T | grep -i '^permitrootlogin' | awk '{print $2}')"
+check "Парольная аутентификация отключена" "no" "$(sudo sshd -T | grep -i '^passwordauthentication' | awk '{print $2}')"
 
 # TODO 1: проверьте, что значение параметра port отлично от 22
-ACTUAL_PORT="$(sudo sshd -T | awk '/^port/{print $2}')"
+ACTUAL_PORT="$(sudo sshd -T | grep -i '^port' | awk '{print $2}')"
 [[ "$ACTUAL_PORT" != "22" && -n "$ACTUAL_PORT" ]] && PORT_CHECK="true" || PORT_CHECK="false"
 check "Порт службы SSH отличен от 22" "true" "$PORT_CHECK"
 
 # TODO 2: проверьте, что значение параметра maxauthtries равно 3
-check "Лимит попыток аутентификации равен 3" "3" "$(sudo sshd -T | awk '/^maxauthtries/{print $2}')"
+check "Лимит попыток аутентификации равен 3" "3" "$(sudo sshd -T | grep -i '^maxauthtries' | awk '{print $2}')"
 
 echo "[2] Межсетевой экран"
 check "Межсетевой экран активен" "active" "$(sudo ufw status | awk '/^Status:/{print $2}')"
