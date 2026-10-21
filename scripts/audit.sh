@@ -67,5 +67,24 @@ else
 fi
 check "Отсутствуют файлы с правом записи для всех и права ключа 600" "ok" "$SECURITY_CHECK"
 
+echo "[5] Контейнеризация"
+# а) служба docker активна
+check "Служба Docker активна" "active" "$(systemctl is-active docker 2>/dev/null || true)"
+
+# б) контейнер СУБД находится в состоянии healthy
+DB_STATUS="$(docker inspect -f '{{.State.Health.Status}}' app-db-1 2>/dev/null || true)"
+check "Контейнер СУБД в состоянии healthy" "healthy" "$DB_STATUS"
+
+# в) порты 5000 и 5432 не прослушиваются ни на одном адресе, кроме 127.0.0.1
+NON_LOCAL_PORTS="$(ss -tln 2>/dev/null | grep -E ':(5000|5432)\b' | grep -v '127.0.0.1:' | wc -l | tr -d ' ')"
+[[ "$NON_LOCAL_PORTS" -eq 0 ]] && PORTS_SECURE="ok" || PORTS_SECURE="failed"
+check "Порты 5000 и 5432 закрыты для внешних адресов" "ok" "$PORTS_SECURE"
+
+# г) права файла ~/app/.env равны 600
+ENV_FILE="/home/devops/app/.env"
+[[ ! -f "$ENV_FILE" && -f "${HOME}/app/.env" ]] && ENV_FILE="${HOME}/app/.env"
+ENV_PERMS="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || true)"
+check "Права файла .env равны 600" "600" "$ENV_PERMS"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
